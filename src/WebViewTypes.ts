@@ -29,7 +29,7 @@ interface RNCWebViewUIManager<Commands extends string> extends UIManagerStatic {
 export type RNCWebViewUIManagerAndroid = RNCWebViewUIManager<WebViewCommands | AndroidWebViewCommands>
 export type RNCWebViewUIManagerIOS = RNCWebViewUIManager<WebViewCommands>
 export type RNCWebViewUIManagerMacOS = RNCWebViewUIManager<WebViewCommands>
-
+export type RNCWebViewUIManagerWindows = RNCWebViewUIManager<WebViewCommands>
 
 type WebViewState = 'IDLE' | 'LOADING' | 'ERROR';
 
@@ -72,6 +72,14 @@ declare class NativeWebViewAndroidComponent extends Component<
 declare const NativeWebViewAndroidBase: Constructor<NativeMethodsMixin> &
   typeof NativeWebViewAndroidComponent;
 export class NativeWebViewAndroid extends NativeWebViewAndroidBase {}
+
+// eslint-disable-next-line react/prefer-stateless-function
+declare class NativeWebViewWindowsComponent extends Component<
+  WindowsNativeWebViewProps
+> {}
+declare const NativeWebViewWindowsBase: Constructor<NativeMethodsMixin> &
+  typeof NativeWebViewWindowsComponent;
+export class NativeWebViewWindows extends NativeWebViewWindowsBase {}
 
 export interface ContentInsetProp {
   top?: number;
@@ -203,7 +211,7 @@ export interface WebViewNativeConfig {
   /**
    * The native component used to render the WebView.
    */
-  component?: typeof NativeWebViewIOS | typeof NativeWebViewMacOS | typeof NativeWebViewAndroid;
+  component?: typeof NativeWebViewIOS | typeof NativeWebViewMacOS | typeof NativeWebViewAndroid | typeof NativeWebViewWindows;
   /**
    * Set props directly on the native component WebView. Enables custom props which the
    * original WebView doesn't pass through.
@@ -308,6 +316,8 @@ export interface MacOSNativeWebViewProps extends CommonNativeWebViewProps {
   useSharedProcessPool?: boolean;
   onContentProcessDidTerminate?: (event: WebViewTerminatedEvent) => void;
 }
+
+export interface WindowsNativeWebViewProps extends CommonNativeWebViewProps {}
 
 export interface IOSWebViewProps extends WebViewSharedProps {
   /**
@@ -752,6 +762,8 @@ export interface AndroidWebViewProps extends WebViewSharedProps {
    */
   allowsFullscreenVideo?: boolean;
 }
+
+export interface WindowsWebViewProps extends WebViewSharedProps {}
 
 export interface WebViewSharedProps extends ViewProps {
   /**

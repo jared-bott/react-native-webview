@@ -72,6 +72,7 @@
     "android",
     "ios",
     "macos",
+    "windows",
     "lib",
     "index.js",
     "index.d.ts",
