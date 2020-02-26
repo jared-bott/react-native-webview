@@ -53,7 +53,7 @@ winrt::Windows::Foundation::Collections::
     WebViewManager::NativeProps() noexcept {
   auto nativeProps = winrt::single_threaded_map<hstring, ViewManagerPropertyType>();
   nativeProps.Insert(L"source", ViewManagerPropertyType::Map);
-  nativeProps.Insert(L"injectedJavaScript", ViewManagerPropertyType::String);
+  nativeProps.Insert(L"injectedJavaScriptBeforeContentLoaded", ViewManagerPropertyType::String);
 
   return nativeProps.GetView();
 }
@@ -77,7 +77,7 @@ void WebViewManager::UpdateProperties(
           }
           webView.Set_UriString();
           sourceChanged = true;
-        } else if (propertyName == "injectedJavascript") {
+        } else if (propertyName == "injectedJavaScriptBeforeContentLoaded") {
           webView.Set_StartingJavaScript(propertyValue.String());
         }
       }
