@@ -26,12 +26,12 @@ import {
   NativeWebViewWindows,
   ViewManager,
   State,
-  RNCWebViewUIManager,
+  RNCWebViewUIManagerWindows,
 } from './WebViewTypes';
 
 import styles from './WebView.styles';
 
-const UIManager = NotTypedUIManager as RNCWebViewUIManager;
+const UIManager = NotTypedUIManager as RNCWebViewUIManagerWindows;
 
 const { resolveAssetSource } = Image;
 

@@ -3,11 +3,8 @@
 
 #pragma once
 
-#include "WebView.h"
-
 #include <winrt/Microsoft.ReactNative.h>
-#include <winrt/Windows.UI.Xaml.Controls.h>
-#include <winrt/Windows.UI.Xaml.Media.h>
+#include "NativeModules.h"
 
 namespace winrt {
 using namespace Windows::Foundation;
@@ -15,30 +12,9 @@ using namespace Windows::UI::Xaml::Controls;
 using namespace Windows::Foundation::Collections;
 } // namespace winrt
 
-template <>
-struct json_type_traits<winrt::ReactNativeWebView::WebSource> {
-  static winrt::ReactNativeWebView::WebSource parseJson(const folly::dynamic &json) {
-    winrt::ReactNativeWebView::WebSource source;
-    for (auto &item : json.items()) {
-      if (item.first == "uri")
-        source.uri = item.second.asString();
-      if (item.first == "__packager_asset")
-        source.packagerAsset = item.second.asBool();
-    }
-    return source;
-  }
-};
-
-namespace winrt::ReactNativeWebView {
-struct WebSource {
-  std::string uri;
-  bool packagerAsset;
-};
-} // namespace winrt::ReactNativeWebView
-
 namespace winrt::ReactNativeWebView::implementation {
 
-class WebViewManager : winrt::implements<
+class WebViewManager : public winrt::implements<
                            WebViewManager,
                            winrt::Microsoft::ReactNative::IViewManager,
                            winrt::Microsoft::ReactNative::IViewManagerWithReactContext,
@@ -46,14 +22,11 @@ class WebViewManager : winrt::implements<
                            winrt::Microsoft::ReactNative::IViewManagerWithNativeProperties,
                            winrt::Microsoft::ReactNative::IViewManagerWithExportedEventTypeConstants> {
  public:
-  RCT_BEGIN_PROPERTY_MAP(WebViewManager)
-  RCT_PROPERTY("source", setSource) RCT_END_PROPERTY_MAP();
-
   WebViewManager();
 
   // IViewManager
   winrt::hstring Name() noexcept;
-  FrameworkElement CreateView() noexcept;
+  winrt::Windows::UI::Xaml::FrameworkElement CreateView() noexcept;
 
   // IViewManagerWithReactContext
   winrt::Microsoft::ReactNative::IReactContext ReactContext() noexcept;
@@ -82,7 +55,6 @@ class WebViewManager : winrt::implements<
   winrt::Microsoft::ReactNative::ConstantProviderDelegate ExportedCustomDirectEventTypeConstants() noexcept;
 
  private:
-  void setSource(XamlView viewToUpdate, const WebSource &sources);
   winrt::Microsoft::ReactNative::IReactContext m_reactContext{nullptr};
 };
 } // namespace winrt::ReactNativeWebView::implementation

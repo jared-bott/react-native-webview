@@ -4,7 +4,7 @@
 #include "ReactPackageProvider.g.cpp"
 #endif
 
-#include "ReactVideoViewManager.h"
+#include "WebViewManager.h"
 
 using namespace winrt::Microsoft::ReactNative;
 

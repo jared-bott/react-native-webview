@@ -3,20 +3,14 @@
 
 #include "pch.h"
 
+#include "WebView.h"
+
 #include "JSValueReader.h"
 #include "JSValueXaml.h"
 #include "NativeModules.h"
 #include "WebViewManager.h"
 
-#include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.Foundation.h>
-#include <winrt/Windows.UI.Xaml.Controls.h>
-
-#include <condition_variable>
 #include <mutex>
-#include <type_traits>
-
-using namespace folly;
 
 namespace winrt {
 using namespace Microsoft::ReactNative;
@@ -27,16 +21,14 @@ using namespace Windows::UI::Xaml::Controls;
 
 namespace winrt::ReactNativeWebView::implementation {
 
-WebViewManager::WebViewManager() {
-  SetupPropertyHandlersInternal();
-}
+WebViewManager::WebViewManager() {}
 
 winrt::hstring WebViewManager::Name() noexcept {
   return L"RNCWebView";
 }
 
-FrameworkElement WebViewManager::CreateView() noexcept {
-  auto webView = WebView(m_reactContext);
+winrt::Windows::UI::Xaml::FrameworkElement WebViewManager::CreateView() noexcept {
+  auto webView = winrt::ReactNativeWebView::WebView(m_reactContext);
   return webView;
 }
 
@@ -71,14 +63,18 @@ void WebViewManager::UpdateProperties(
       if (!propertyValue.IsNull()) {
         if (propertyName == "source") {
           auto const &srcMap = propertyValue.Object();
-          auto uri = to_hstring(srcMap.at("uri").String());
-          if (srcMap.at("packagerAsset") && uri.find("assets") == 0) {
+          auto uri = srcMap.at("uri").String();
+          bool isPackagerAsset = false;
+          if (srcMap.find("__packager_asset") != srcMap.end()) {
+            isPackagerAsset = srcMap.at("__packager_asset").Boolean();
+          }
+          if (isPackagerAsset && uri.find("assets") == 0) {
             uri.replace(0, 6, "ms-appx://");
           }
-          webView.Set_UriString();
+          webView.Set_UriString(winrt::to_hstring(uri));
           sourceChanged = true;
         } else if (propertyName == "injectedJavaScriptBeforeContentLoaded") {
-          webView.Set_StartingJavaScript(propertyValue.String());
+          webView.Set_StartingJavaScript(winrt::to_hstring(propertyValue.String()));
         }
       }
     }
@@ -89,29 +85,8 @@ void WebViewManager::UpdateProperties(
   }
 }
 
-void WebViewManager::setSource(XamlView viewToUpdate, const WebSource &source) {
-  auto instance = m_wkReactInstance.lock();
-  if (instance == nullptr) {
-    return;
-  }
-  auto view = viewToUpdate.as<winrt::WebView>();
-
-  // non-uri sources not yet supported
-  if (source.uri.length() == 0) {
-    return;
-  }
-
-  auto uriString = source.uri;
-  if (source.packagerAsset && uriString.find("assets") == 0) {
-    uriString.replace(0, 6, "ms-appx://");
-  }
-
-  auto uri = winrt::Uri(winrt::hstring(asWStr(uriString).c_str()));
-  view.Navigate(uri);
-}
-
-winrt::Microsoft::ReactNative::ConstantProviderDelegate WebViewManager::ExportedViewConstants() noexcept {
-  return [](winrt::Microsoft::ReactNative::IJSValueWriter const &constantWriter) {};
+ConstantProviderDelegate WebViewManager::ExportedCustomBubblingEventTypeConstants() noexcept {
+  return nullptr;
 }
 
 ConstantProviderDelegate WebViewManager::ExportedCustomDirectEventTypeConstants() noexcept {
@@ -142,19 +117,19 @@ void WebViewManager::DispatchCommand(
   if (auto control = view.try_as<WebView>()) {
     switch (commandId) {
       case static_cast<int64_t>(WebViewCommands::InjectJavaScript):
-        control.InjectJavaScript(winrt::to_string(commandArgsReader.GetString()));
+        control->InjectJavaScript(commandArgsReader.GetString());
         break;
       case static_cast<int64_t>(WebViewCommands::GoBack):
-        control.GoBack();
+        control->GoBack();
         break;
       case static_cast<int64_t>(WebViewCommands::GoForward):
-        controlGoForward();
+        control->GoForward();
         break;
       case static_cast<int64_t>(WebViewCommands::Reload):
-        control.Refresh();
+        control->Reload();
         break;
       case static_cast<int64_t>(WebViewCommands::StopLoading):
-        control.Stop();
+        control->StopLoading();
         break;
     }
   }
