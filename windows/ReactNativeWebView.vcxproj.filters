@@ -13,17 +13,17 @@
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
     <ClCompile Include="ReactPackageProvider.cpp" />
-    <ClCompile Include="ReactVideoView.cpp" />
-    <ClCompile Include="ReactVideoViewManager.cpp" />
+    <ClCompile Include="WebView.cpp" />
+    <ClCompile Include="WebViewManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="ReactPackageProvider.h" />
-    <ClInclude Include="ReactVideoView.h" />
-    <ClInclude Include="ReactVideoViewManager.h" />
+    <ClInclude Include="WebView.h" />
+    <ClInclude Include="WebViewManager.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="ReactNativeVideoCPP.def" />
+    <None Include="ReactNativeWebView.def" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -34,6 +34,6 @@
   </ItemGroup>
   <ItemGroup>
     <Midl Include="ReactPackageProvider.idl" />
-    <Midl Include="ReactVideoView.idl" />
+    <Midl Include="WebView.idl" />
   </ItemGroup>
 </Project>

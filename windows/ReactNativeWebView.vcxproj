@@ -105,7 +105,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ReactVideoView.h">
-      <!-- <DependentUpon>ReactVideoView.idl</DependentUpon> -->
+      <DependentUpon>Webiew.idl</DependentUpon>
     </ClInclude>
     <ClInclude Include="WebViewManager.h" />
     <ClInclude Include="pch.h" />
@@ -115,7 +115,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WebView.cpp">
-      <!-- <DependentUpon>ReactVideoView.idl</DependentUpon> -->
+      <DependentUpon>WebView.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="WebViewManager.cpp" />
     <ClCompile Include="pch.cpp">
@@ -126,10 +126,10 @@
     </ClCompile>
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
   </ItemGroup>
-  <!-- <ItemGroup>
-    <Midl Include="ReactVideoView.idl" />
+  <ItemGroup>
+    <Midl Include="WebView.idl" />
     <Midl Include="ReactPackageProvider.idl" />
-  </ItemGroup> -->
+  </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="ReactNativeWebView.def" />

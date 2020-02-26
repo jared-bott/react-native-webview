@@ -3,25 +3,11 @@
 
 #pragma once
 
-#include <Views/FrameworkElementViewManager.h>
-#include <Views/ShadowNodeBase.h>
-#include <winrt/Windows.UI.Xaml.Controls.h>
-#include <winrt/Windows.UI.Xaml.Media.h>
-#include "Utils/PropertyHandlerUtils.h"
 #include "WebView.h"
 
-namespace winrt::Windows::UI::Xaml::Media {
-enum class Stretch;
-}
-
-namespace react {
-namespace uwp {
-struct WebSource {
-  std::string uri;
-  bool packagerAsset;
-};
-} // namespace uwp
-} // namespace react
+#include <winrt/Microsoft.ReactNative.h>
+#include <winrt/Windows.UI.Xaml.Controls.h>
+#include <winrt/Windows.UI.Xaml.Media.h>
 
 namespace winrt {
 using namespace Windows::Foundation;
@@ -30,9 +16,9 @@ using namespace Windows::Foundation::Collections;
 } // namespace winrt
 
 template <>
-struct json_type_traits<react::uwp::WebSource> {
-  static react::uwp::WebSource parseJson(const folly::dynamic &json) {
-    react::uwp::WebSource source;
+struct json_type_traits<winrt::ReactNativeWebView::WebSource> {
+  static winrt::ReactNativeWebView::WebSource parseJson(const folly::dynamic &json) {
+    winrt::ReactNativeWebView::WebSource source;
     for (auto &item : json.items()) {
       if (item.first == "uri")
         source.uri = item.second.asString();
@@ -43,37 +29,60 @@ struct json_type_traits<react::uwp::WebSource> {
   }
 };
 
-namespace react {
-namespace uwp {
+namespace winrt::ReactNativeWebView {
+struct WebSource {
+  std::string uri;
+  bool packagerAsset;
+};
+} // namespace winrt::ReactNativeWebView
 
-class WebViewManager : public FrameworkElementViewManager {
-  using Super = FrameworkElementViewManager;
+namespace winrt::ReactNativeWebView::implementation {
 
+class WebViewManager : winrt::implements<
+                           WebViewManager,
+                           winrt::Microsoft::ReactNative::IViewManager,
+                           winrt::Microsoft::ReactNative::IViewManagerWithReactContext,
+                           winrt::Microsoft::ReactNative::IViewManagerWithCommands,
+                           winrt::Microsoft::ReactNative::IViewManagerWithNativeProperties,
+                           winrt::Microsoft::ReactNative::IViewManagerWithExportedEventTypeConstants> {
  public:
   RCT_BEGIN_PROPERTY_MAP(WebViewManager)
-  RCT_PROPERTY("source", setSource)
-  RCT_END_PROPERTY_MAP()
+  RCT_PROPERTY("source", setSource) RCT_END_PROPERTY_MAP();
 
-  WebViewManager(const std::shared_ptr<IReactInstance> &reactInstance);
+  WebViewManager();
 
-  const char *GetName() const override;
-  void UpdateProperties(ShadowNodeBase *nodeToUpdate, const folly::dynamic &reactDiffMap) override;
+  // IViewManager
+  winrt::hstring Name() noexcept;
+  FrameworkElement CreateView() noexcept;
 
-  folly::dynamic GetExportedCustomDirectEventTypeConstants() const override;
-  folly::dynamic GetNativeProps() const override;
+  // IViewManagerWithReactContext
+  winrt::Microsoft::ReactNative::IReactContext ReactContext() noexcept;
+  void ReactContext(winrt::Microsoft::ReactNative::IReactContext reactContext) noexcept;
 
-  folly::dynamic GetCommands() const override;
+  // IViewManagerWithCommands
+  winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, int64_t> Commands() noexcept;
 
-  void DispatchCommand(XamlView viewToUpdate, int64_t commandId, const folly::dynamic &commandArgs) override;
-  void FireEvent(const std::string &eventName, folly::dynamic eventArgs = folly::dynamic::object());
-  facebook::react::ShadowNode *createShadow() const;
+  void DispatchCommand(
+      winrt::Windows::UI::Xaml::FrameworkElement const &view,
+      int64_t commandId,
+      winrt::Microsoft::ReactNative::IJSValueReader const &commandArgsReader) noexcept;
 
- protected:
-  XamlView CreateViewCore(int64_t tag) override;
+  // IViewManagerWithNativeProperties
+  winrt::Windows::Foundation::Collections::
+      IMapView<winrt::hstring, winrt::Microsoft::ReactNative::ViewManagerPropertyType>
+      NativeProps() noexcept;
+
+  void UpdateProperties(
+      winrt::Windows::UI::Xaml::FrameworkElement const &view,
+      winrt::Microsoft::ReactNative::IJSValueReader const &propertyMapReader) noexcept;
+
+  // IViewManagerWithExportedEventTypeConstants
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate ExportedCustomBubblingEventTypeConstants() noexcept;
+
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate ExportedCustomDirectEventTypeConstants() noexcept;
 
  private:
   void setSource(XamlView viewToUpdate, const WebSource &sources);
+  winrt::Microsoft::ReactNative::IReactContext m_reactContext{nullptr};
 };
-
-} // namespace uwp
-} // namespace react
+} // namespace winrt::ReactNativeWebView::implementation

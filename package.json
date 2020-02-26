@@ -62,6 +62,7 @@
   "files": [
     "android",
     "ios",
+    "windows",
     "lib",
     "index.js",
     "index.d.ts",

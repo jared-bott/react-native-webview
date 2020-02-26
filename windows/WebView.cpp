@@ -20,10 +20,110 @@ using namespace Windows::UI::Xaml::Controls;
 using namespace Windows::Foundation::Collections;
 } // namespace winrt
 
-namespace react {
-namespace uwp {
+namespace winrt::ReactNativeWebView::implementation {
 
-WebView::WebView() {}
+WebView::WebView(Microsoft::ReactNative::IReactContext const &reactContext) : m_reactContext(reactContext) {
+#ifdef CHAKRACORE_UWP
+  m_webView = winrt::WebView(winrt::WebViewExecutionMode::SeparateProcess);
+#else
+  m_webView = winrt::WebView();
+#endif
+
+  m_uiDispatcher = CoreWindow::GetForCurrentThread().Dispatcher();
+
+  m_onMessageToken =
+      m_webView.ScriptNotify([ref = get_weak()](const winrt::IInspectable, const winrt::NotifyEventArgs args) {
+        if (auto self = ref.get()) {
+          runOnQueue([weak_this{get_weak()}, data{winrt::to_string(args.Value())}]() {
+            if (auto strong_this{weak_this.get()}) {
+              strong_this->m_reactContext.DispatchEvent(
+                  *strong_this,
+                  WebViewEvents::OnMessage.data(),
+                  [&](winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) noexcept {
+                    eventDataWriter.WriteObjectBegin();
+                    { WriteProperty(eventDataWriter, L"data", data); }
+                    eventDataWriter.WriteObjectEnd();
+                  });
+            }
+          });
+        }
+      });
+
+  m_onLoadStartToken = m_webView.NavigationStarting(
+      [ref = get_weak()](winrt::WebView view, winrt::WebViewNavigationStartingEventArgs args) {
+        if (auto self = ref.get()) {
+          runOnQueue([weak_this{get_weak()}]() {
+            if (auto strong_this{weak_this.get()}) {
+              // strong_this->m_reactContext.DispatchEvent(
+              //     *strong_this,
+              //     WebViewEvents::OnShouldStartLoadWithRequest.data(),
+              //     [&](winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) noexcept {
+              //       eventDataWriter.WriteObjectBegin();
+              //       createWebViewArgs(eventDataWriter);
+              //       { WriteProperty(eventDataWriter, L"navigationType", L"other"); }
+              //       eventDataWriter.WriteObjectEnd();
+              //     });
+              strong_this->m_reactContext.DispatchEvent(
+                  *strong_this,
+                  WebViewEvents::OnLoadingStart.data(),
+                  [&](winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) noexcept {
+                    eventDataWriter.WriteObjectBegin();
+                    createWebViewArgs(eventDataWriter);
+                    eventDataWriter.WriteObjectEnd();
+                  });
+            }
+          });
+        }
+      });
+
+  m_onLoadedToken = m_webView.NavigationCompleted(
+      [ref = get_weak()](winrt::WebView view, winrt::WebViewNavigationCompletedEventArgs args) {
+        if (auto self = ref.get()) {
+          injectMessageJavaScript(m_view);
+          runOnQueue([weak_this{get_weak()}]() {
+            if (auto strong_this{weak_this.get()}) {
+              strong_this->m_reactContext.DispatchEvent(
+                  *strong_this,
+                  WebViewEvents::OnLoadingFinish.data(),
+                  [&](winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) noexcept {
+                    eventDataWriter.WriteObjectBegin();
+                    createWebViewArgs(eventDataWriter);
+                    eventDataWriter.WriteObjectEnd();
+                  });
+            }
+          });
+        }
+      });
+
+  m_onErrorToken = m_webView.NavigationFailed(
+      [ref = get_weak()](winrt::IInspectable view, winrt::WebViewNavigationFailedEventArgs args) {
+        if (auto self = ref.get()) {
+          auto httpCode = static_cast<int32_t>(args.WebErrorStatus());
+          runOnQueue([weak_this{get_weak()}, httpCode]() {
+            if (auto strong_this{weak_this.get()}) {
+              strong_this->m_reactContext.DispatchEvent(
+                  *strong_this,
+                  WebViewEvents::OnLoadingError.data(),
+                  [&](winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) noexcept {
+                    eventDataWriter.WriteObjectBegin();
+                    { WriteProperty(eventDataWriter, L"code", httpCode); }
+                    createWebViewArgs(eventDataWriter);
+                    eventDataWriter.WriteObjectEnd();
+                  });
+              strong_this->m_reactContext.DispatchEvent(
+                  *strong_this,
+                  WebViewEvents::OnHttpError.data(),
+                  [&](winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) noexcept {
+                    eventDataWriter.WriteObjectBegin();
+                    { WriteProperty(eventDataWriter, L"statusCode", httpCode); }
+                    createWebViewArgs(eventDataWriter);
+                    eventDataWriter.WriteObjectEnd();
+                  });
+            }
+          });
+        }
+      });
+}
 
 WebView::~WebView() {
   auto webView = GetView().as<winrt::WebView>();
@@ -42,129 +142,45 @@ WebView::~WebView() {
   }
 }
 
-void WebView::createView() {
-  Super::createView();
-
-  auto webView = GetView().as<winrt::WebView>();
-  auto weakInstance = GetViewManager()->GetReactInstance();
-
-  m_onMessageToken = webView.ScriptNotify([=](const winrt::IInspectable, const winrt::NotifyEventArgs args) {
-    auto instance = weakInstance.lock();
-    if (!m_updating && instance != nullptr) {
-      folly::dynamic data = dynamic::object("data", winrt::to_string(args.Value()));
-      instance->DispatchEvent(m_tag, WebViewEvents::OnMessage.data(), std::move(data));
-    }
-  });
-
-  m_onLoadStartToken =
-      webView.NavigationStarting([=](winrt::WebView view, winrt::WebViewNavigationStartingEventArgs args) {
-        auto instance = weakInstance.lock();
-        // On initial load, this will be called before props are finished updating.
-        if (instance != nullptr) {
-          {
-            // TODO: Can any of these be supported? lockIdentifier mainDocumentURL(iOS only) navigationType
-            auto loadArgs = createWebViewArgs(view);
-            // This is what Android does for navigation type.
-            loadArgs["navigationType"] = "other";
-            // Can't get the whole thing to work correctly. Commenting out the event.
-            // instance->DispatchEvent(m_tag, WebViewEvents::OnShouldStartLoadWithRequest.data(), std::move(loadArgs));
-            args.Cancel(true);
-          }
-          instance->DispatchEvent(m_tag, WebViewEvents::OnLoadingStart.data(), createWebViewArgs(view));
-        }
-      });
-
-  m_onLoadedToken =
-      webView.NavigationCompleted([=](winrt::WebView view, winrt::WebViewNavigationCompletedEventArgs args) {
-        auto instance = weakInstance.lock();
-        if (!m_updating && instance != nullptr) {
-          injectMessageJavaScript(view);
-          instance->DispatchEvent(m_tag, WebViewEvents::OnLoadingFinish.data(), createWebViewArgs(view));
-        }
-      });
-
-  m_onErrorToken =
-      webView.NavigationFailed([=](winrt::IInspectable view, winrt::WebViewNavigationFailedEventArgs args) {
-        auto instance = weakInstance.lock();
-        if (!m_updating && instance != nullptr) {
-          winrt::WebView webView = view.as<winrt::WebView>();
-          if (webView) {
-            auto httpCode = static_cast<int32_t>(args.WebErrorStatus());
-            {
-              auto errorArgs = createWebViewArgs(webView);
-              // TODO: The args need additional fields.
-              // code description didFailProvisionalNavigation domain
-              errorArgs["code"] = httpCode;
-
-              instance->DispatchEvent(m_tag, WebViewEvents::OnLoadingError.data(), std::move(errorArgs));
-            }
-            {
-              // statusCode
-              auto errorArgs = createWebViewArgs(webView);
-              errorArgs["statusCode"] = httpCode;
-              instance->DispatchEvent(m_tag, WebViewEvents::OnHttpError.data(), std::move(errorArgs));
-            }
-          }
-        }
-      });
+void WebView::Load() {
+  m_view.Navigate(winrt::Uri(m_uri));
 }
 
-void WebView::dispatchCommand(int64_t commandId, const folly::dynamic &commandArgs) {
-  auto webView = GetView().as<winrt::WebView>();
+void WebView::Set_UriString(hstring const &uri) {
+  m_uri = uri;
+}
 
-  switch (commandId) {
-    case static_cast<int64_t>(WebViewCommands::InjectJavaScript):
-      injectJavaScript(webView, commandArgs[0].asString());
-      break;
-    case static_cast<int64_t>(WebViewCommands::GoBack):
-      if (webView.CanGoBack()) {
-        webView.GoBack();
-      }
-      break;
-    case static_cast<int64_t>(WebViewCommands::GoForward):
-      if (webView.CanGoForward()) {
-        webView.GoForward();
-      }
-      break;
-    case static_cast<int64_t>(WebViewCommands::Reload):
-      webView.Refresh();
-      break;
-    case static_cast<int64_t>(WebViewCommands::StopLoading):
-      webView.Stop();
-      break;
+void WebView::Set_StartingJavaScript(hstring const &script) {
+  m_injectedJavascript = script;
+}
+
+void WebView::InjectJavaScript(hstring const &script) {
+  injectJavaScript(webView, script);
+}
+
+void WebView::GoBack() {
+  if (m_view.CanGoBack()) {
+    m_view.GoBack();
   }
 }
 
-void WebView::updateProperties(const folly::dynamic &&props) {
-  m_updating = true;
-
-  auto webView = GetView().as<winrt::WebView>();
-  if (webView == nullptr) {
-    return;
+void WebView::GoForward() {
+  if (m_view.CanGoForward()) {
+    m_view.GoForward();
   }
-
-  for (auto &pair : props.items()) {
-    const std::string &propertyName = pair.first.getString();
-    const folly::dynamic &propertyValue = pair.second;
-
-    if (propertyName == "injectedJavaScript") {
-      if (propertyValue.isString()) {
-        m_injectedJavascript = propertyValue.asString();
-      } else {
-        // TODO: Is this an error condition? Not sure what it sets for undefined
-        m_injectedJavascript = std::string();
-      }
-    }
-  }
-
-  Super::updateProperties(std::move(props));
-  m_updating = false;
 }
 
-winrt::IAsyncAction WebView::injectJavaScript(winrt::WebView webView, std::string javaScript) {
+void WebView::Reload() {
+  m_view.Reload();
+}
+
+void WebView::StopLoading() {
+  m_view.Stop();
+}
+
+winrt::IAsyncAction WebView::injectJavaScript(winrt::hstring javaScript) {
   try {
-    winrt::hstring script = winrt::to_hstring(javaScript);
-    auto result = co_await webView.InvokeScriptAsync(L"eval", {script});
+    auto result = co_await m_view.InvokeScriptAsync(L"eval", {javaScript});
   } catch (std::exception &e) {
     // I don't have a logger?
     OutputDebugStringA("\n");
@@ -172,26 +188,30 @@ winrt::IAsyncAction WebView::injectJavaScript(winrt::WebView webView, std::strin
   }
 }
 
-winrt::IAsyncAction WebView::injectMessageJavaScript(winrt::WebView webView) {
+winrt::IAsyncAction WebView::injectMessageJavaScript() {
   // This is for onMessage
   co_await injectJavaScript(
-      webView, "window.ReactNativeWebView = {postMessage: function (data) {window.external.notify(String(data));}};");
+      m_view, "window.ReactNativeWebView = {postMessage: function (data) {window.external.notify(String(data));}};");
   if (!m_injectedJavascript.empty()) {
-    co_await injectJavaScript(webView, m_injectedJavascript);
+    co_await injectJavaScript(m_view, m_injectedJavascript);
   }
 }
 
-folly::dynamic WebView::createWebViewArgs(winrt::WebView view) {
+folly::dynamic WebView::createWebViewArgs(winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter) {
   folly::dynamic args = folly::dynamic::object;
-  args["canGoBack"] = view.CanGoBack();
-  args["canGoForward"] = view.CanGoForward();
+  args["canGoBack"] = m_view.CanGoBack();
+  args["canGoForward"] = m_view.CanGoForward();
   // Presumably if the view isn't loaded, then it is loading.
-  args["loading"] = !view.IsLoaded();
+  args["loading"] = !m_view.IsLoaded();
   args["target"] = m_tag;
-  args["title"] = winrt::to_string(view.DocumentTitle());
-  args["url"] = winrt::to_string(view.Source().AbsoluteCanonicalUri());
+  args["title"] = winrt::to_string(m_view.DocumentTitle());
+  args["url"] = winrt::to_string(m_view.Source().AbsoluteCanonicalUri());
 
   return args;
 }
-} // namespace uwp
-} // namespace react
+
+void WebView::runOnQueue(std::function<void()> &&func) {
+  m_uiDispatcher.RunAsync(
+      winrt::Windows::UI::Core::CoreDispatcherPriority::Normal, [func = std::move(func)]() { func(); });
+}
+} // namespace winrt::ReactNativeWebView::implementation

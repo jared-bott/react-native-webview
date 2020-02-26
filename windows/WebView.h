@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "WebView.g.h"
 #include <Views/FrameworkElementViewManager.h>
 #include <Views/ShadowNodeBase.h>
 #include <winrt/Windows.UI.Xaml.Controls.h>
@@ -10,64 +11,53 @@
 #include <string_view>
 #include "Utils/PropertyHandlerUtils.h"
 
-namespace winrt::Windows::UI::Xaml::Media {
-enum class Stretch;
-}
-
-namespace react {
-namespace uwp {
-struct WebSource {
-  std::string uri;
-  bool packagerAsset;
-};
-} // namespace uwp
-} // namespace react
-
 namespace winrt {
 using namespace Windows::Foundation;
 using namespace Windows::UI::Xaml::Controls;
 using namespace Windows::Foundation::Collections;
 } // namespace winrt
 
-namespace react {
-namespace uwp {
+namespace winrt::ReactNativeWebView::implementation {
 
 struct WebViewEvents {
-  static constexpr std::string_view OnLoadingStart = "onLoadingStart";
-  static constexpr std::string_view OnLoadingFinish = "onLoadingFinish";
-  static constexpr std::string_view OnMessage = "onMessage";
-  static constexpr std::string_view OnLoadingError = "onLoadingError";
-  static constexpr std::string_view OnHttpError = "onHttpError";
-  static constexpr std::string_view OnShouldStartLoadWithRequest = "onShouldStartLoadWithRequest";
+  static constexpr winrt::hstring_view OnLoadingStart = "onLoadingStart";
+  static constexpr winrt::hstring_view OnLoadingFinish = "onLoadingFinish";
+  static constexpr winrt::hstring_view OnMessage = "onMessage";
+  static constexpr winrt::hstring_view OnLoadingError = "onLoadingError";
+  static constexpr winrt::hstring_view OnHttpError = "onHttpError";
+  static constexpr winrt::hstring_view OnShouldStartLoadWithRequest = "onShouldStartLoadWithRequest";
 };
 
 enum class WebViewCommands : int32_t { InjectJavaScript = 0, GoBack = 1, GoForward = 2, Reload = 3, StopLoading = 4 };
 
-class WebView : public react::uwp::ShadowNodeBase {
-  using Super = react::uwp::ShadowNodeBase;
-
+class WebView : WebViewT<WebView> {
  public:
-  WebView();
+  WebView(Microsoft::ReactNative::IReactContext const &reactContext);
   ~WebView();
 
-  void createView() override;
-
-  // Handle commands received from ReactNative
-  void dispatchCommand(int64_t commandId, const folly::dynamic &commandArgs) override;
-
-  // Handle property changes from ReactNative
-  void updateProperties(const folly::dynamic &&props) override;
+  void Load();
+  void Set_UriString(hstring const &uri);
+  void Set_StartingJavaScript(hstring const &script);
+  void InjectJavaScript(hstring const &script);
+  void GoBack();
+  void GoForward();
+  void Reload();
+  void StopLoading();
 
  private:
-  winrt::IAsyncAction injectJavaScript(winrt::WebView webView, std::string javaScript);
-  winrt::IAsyncAction injectMessageJavaScript(winrt::WebView webView);
-  folly::dynamic createWebViewArgs(winrt::WebView view);
+  winrt::IAsyncAction injectJavaScript(winrt::hstring javaScript);
+  winrt::IAsyncAction injectMessageJavaScript();
+  folly::dynamic createWebViewArgs(winrt::Microsoft::ReactNative::IJSValueWriter const &eventDataWriter);
+  void runOnQueue(std::function<void()> &&func);
 
   winrt::event_token m_onMessageToken;
   winrt::event_token m_onLoadedToken;
   winrt::event_token m_onLoadStartToken;
   winrt::event_token m_onErrorToken;
-  std::string m_injectedJavascript;
+  winrt::hstring m_injectedJavascript;
+  winrt::hstring m_uri;
+  Windows::UI::Core::CoreDispatcher m_uiDispatcher = nullptr;
+  Microsoft::ReactNative::IReactContext m_reactContext{nullptr};
+  winrt::WebView m_webView;
 };
-} // namespace uwp
-} // namespace react
+} // namespace winrt::ReactNativeWebView::implementation
